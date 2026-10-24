@@ -3,45 +3,98 @@
 #include "memlayout.h"
 #include "riscv.h"
 #include "spinlock.h"
+#include "sleeplock.h"
 #include "proc.h"
 #include "defs.h"
 #include "fs.h"
+#include "buf.h"
+#include "file.h"
+#include "stat.h"
+#include "fcntl.h"
 
-struct effect_entry {
-  uint64 key;
-  int res;
-  int used;
-};
+extern struct superblock sb;
 
-#define MAX_EFFECTS 64
-static struct effect_entry table[MAX_EFFECTS];
+static struct sleeplock key_locks[16];
+static int locks_inited = 0;
+
+static void key_lock_init(void) {
+  if(!locks_inited){
+    for(int i = 0; i < 16; i++){
+      initsleeplock(&key_locks[i], "key_lock");
+    }
+    locks_inited = 1;
+  }
+}
+
+void key_lock(uint64 key) {
+  key_lock_init();
+  acquiresleep(&key_locks[key % 16]);
+}
+
+void key_unlock(uint64 key) {
+  releasesleep(&key_locks[key % 16]);
+}
 
 int effect_lookup(uint64 key, int *res) {
-  for(int i = 0; i < MAX_EFFECTS; i++){
-    if(table[i].used && table[i].key == key){
-      *res = table[i].res;
-      return 0;
+  struct buf *b = bread(ROOTDEV, sb.effectstart);
+  struct effect_entry *table = (struct effect_entry*)b->data;
+  uint start_slot = key % EFFECT_TABLE_SIZE;
+  
+  for(int i = 0; i < EFFECT_TABLE_SIZE; i++){
+    uint slot = (start_slot + i) % EFFECT_TABLE_SIZE;
+    if(table[slot].key == key && table[slot].result != 0){
+      *res = table[slot].result;
+      brelse(b);
+      return 0; // Key found
+    }
+    if(table[slot].key == 0) {
+      break;
     }
   }
-  return -1;
+  brelse(b);
+  return -1; // Key not found
 }
 
 void effect_insert(uint64 key, int res) {
-  for(int i = 0; i < MAX_EFFECTS; i++){
-    if(!table[i].used){
-      table[i].key = key;
-      table[i].res = res;
-      table[i].used = 1;
+  struct buf *b = bread(ROOTDEV, sb.effectstart);
+  struct effect_entry *table = (struct effect_entry*)b->data;
+  uint start_slot = key % EFFECT_TABLE_SIZE;
+
+  for(int i = 0; i < EFFECT_TABLE_SIZE; i++){
+    uint slot = (start_slot + i) % EFFECT_TABLE_SIZE;
+    if(table[slot].key == 0 || table[slot].key == key){
+      table[slot].key = key;
+      table[slot].result = res;
+      log_write(b); // Stage table update into transaction
+      brelse(b);
       return;
     }
   }
+  brelse(b);
+  panic("effect_insert: table full");
+}
+
+int do_append(char *path, uint64 ubuf, int n) {
+  struct inode *ip;
+  if((ip = namei(path)) == 0){
+    ip = create(path, T_FILE, 0, 0);
+    if(ip == 0) return -1;
+  } else {
+    ilock(ip);
+  }
+
+  int off = ip->size;
+  int written = writei(ip, 1, ubuf, off, n);
+  iupdate(ip);
+  iunlockput(ip);
+  return written;
 }
 
 uint64
 sys_effect(void)
 {
   uint64 key, ubuf;
-  int op, n, res = 0;
+  int op, n, res;
   char path[MAXPATH];
 
   argaddr(0, &key);
@@ -50,18 +103,21 @@ sys_effect(void)
   argaddr(3, &ubuf);
   argint(4, &n);
 
-  begin_op();
+  key_lock(key);
+  begin_op(); // Single atomic transaction for lookup, write, and table insertion
 
-  if(effect_lookup(key, &res) == 0) {
+  if(effect_lookup(key, &res) == 0){
     end_op();
-    printk("kernel: key %d found in table! Returning cached result: %d\n", (int)key, res);
-    return res;
+    key_unlock(key);
+    return res; // Return cached result without duplicating file write
   }
 
-  res = n; 
-  effect_insert(key, res);
+  res = do_append(path, ubuf, n);
+  if(res > 0){
+    effect_insert(key, res);
+  }
 
   end_op();
-  printk("kernel: effect executed and key %d saved.\n", (int)key);
+  key_unlock(key);
   return res;
 }

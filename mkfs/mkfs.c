@@ -12,23 +12,23 @@
 #include "kernel/param.h"
 
 #ifndef static_assert
-#define static_assert(a, b)                                                    \
-  do {                                                                         \
-    switch (0)                                                                 \
-    case 0:                                                                    \
-    case (a):;                                                                 \
+#define static_assert(a, b)                                                     \
+  do {                                                                          \
+    switch (0)                                                                  \
+    case 0:                                                                     \
+    case (a):;                                                                  \
   } while (0)
 #endif
 
 #define NINODES 200
 
 // Disk layout:
-// [ boot block | sb block | log | inode blocks | free bit map | data blocks ]
+// [ boot block | sb block | log | inode blocks | free bit map | effect block | data blocks ]
 
 int nbitmap = FSSIZE / BPB + 1;
 int ninodeblocks = NINODES / IPB + 1;
 int nlog = LOGBLOCKS + 1; // Header followed by LOGBLOCKS data blocks.
-int nmeta;   // Number of meta blocks (boot, sb, nlog, inode, bitmap)
+int nmeta;   // Number of meta blocks (boot, sb, nlog, inode, bitmap, effect)
 int nblocks; // Number of data blocks
 
 int fsfd;
@@ -93,9 +93,20 @@ main(int argc, char *argv[])
     die(argv[1]);
 
   // 1 fs block = 1 disk sector
-  nmeta = 2 + nlog + ninodeblocks + nbitmap;
+  // Reserved 1 block for the effect table
+  nmeta = 2 + nlog + ninodeblocks + nbitmap + 1;
   nblocks = FSSIZE - nmeta;
 
+  printf(
+    "nmeta %d (boot, super, log blocks %u, inode blocks %u, bitmap blocks %u, effect blocks 1) blocks %d total %d\n",
+    nmeta, nlog, ninodeblocks, nbitmap, nblocks, FSSIZE);
+
+  freeblock = nmeta; // First free data block to allocate
+
+  for (i = 0; i < FSSIZE; i++)
+    wsect(i, zeroes);
+
+  // Initialize superblock metadata
   sb.magic = FSMAGIC;
   sb.size = xint(FSSIZE);
   sb.nblocks = xint(nblocks);
@@ -104,15 +115,8 @@ main(int argc, char *argv[])
   sb.logstart = xint(2);
   sb.inodestart = xint(2 + nlog);
   sb.bmapstart = xint(2 + nlog + ninodeblocks);
-
-  printf(
-    "nmeta %d (boot, super, log blocks %u, inode blocks %u, bitmap blocks %u) blocks %d total %d\n",
-    nmeta, nlog, ninodeblocks, nbitmap, nblocks, FSSIZE);
-
-  freeblock = nmeta; // the first free block that we can allocate
-
-  for (i = 0; i < FSSIZE; i++)
-    wsect(i, zeroes);
+  sb.neffectblocks = xint(1);
+  sb.effectstart = xint(2 + nlog + ninodeblocks + nbitmap);
 
   memset(buf, 0, sizeof(buf));
   memmove(buf, &sb, sizeof(sb));
@@ -145,9 +149,6 @@ main(int argc, char *argv[])
       die(argv[i]);
 
     // Skip leading _ in name when writing to file system.
-    // The binaries are named _rm, _cat, etc. to keep the
-    // build operating system from trying to execute them
-    // in place of system binaries like rm and cat.
     if (shortname[0] == '_')
       shortname += 1;
 
@@ -267,7 +268,6 @@ iappend(uint inum, void *xp, int n)
 
   rinode(inum, &din);
   off = xint(din.size);
-  // printf("append inum %d at off %d sz %d\n", inum, off, n);
   while (n > 0) {
     fbn = off / BSIZE;
     assert(fbn < MAXFILE);
