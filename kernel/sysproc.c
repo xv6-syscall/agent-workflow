@@ -123,4 +123,16 @@ sys_hello(void)
   return a + b + c + d;
 }
 
-// die
+int crashpoint = 0;
+int write_count = 0;
+
+uint64
+sys_crashat(void)
+{
+  int n;
+  argint(0, &n);
+  crashpoint = n;
+  write_count = 0;
+  return 0;
+}
+

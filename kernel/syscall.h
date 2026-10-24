@@ -23,4 +23,4 @@
 #define SYS_sync   22
 #define SYS_hello  23
 #define SYS_effect 24
-
+#define SYS_crashat 25

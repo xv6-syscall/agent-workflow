@@ -45,4 +45,4 @@ entry("uptime");
 entry("sync");
 entry("hello");
 entry("effect");
-
+entry("crashat");
