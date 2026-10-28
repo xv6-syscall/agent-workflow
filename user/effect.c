@@ -1,8 +1,10 @@
 #include "kernel/types.h"
 #include "user/user.h"
 
-int main(int argc, char *argv[]) {
-  if(argc < 5){
+int
+main(int argc, char *argv[])
+{
+  if (argc < 5) {
     printf("Usage: effect key op path text\n");
     exit(1);
   }

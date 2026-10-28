@@ -25,7 +25,7 @@ char *sys_sbrk(int, int);
 int pause(int);
 int uptime(void);
 int sync(void);
-int hello(int, int , int , int);
+int hello(int, int, int, int);
 int effect(uint64 key, int op, char *path, char *buf, int n);
 int crashat(int n);
 

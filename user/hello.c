@@ -1,8 +1,10 @@
 #include "kernel/types.h"
 #include "user/user.h"
 
-int main(int argc, char *argv[]) {
-  if(argc < 5){
+int
+main(int argc, char *argv[])
+{
+  if (argc < 5) {
     printf("Usage: hello a b c d\n");
     exit(1);
   }

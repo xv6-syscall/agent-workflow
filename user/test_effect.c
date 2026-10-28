@@ -3,7 +3,9 @@
 #include "kernel/fcntl.h"
 #include "user/user.h"
 
-void check_file(char *path, char *expected) {
+void
+check_file(char *path, char *expected)
+{
   int fd = open(path, O_RDONLY);
   if (fd < 0) {
     printf("FAIL: Cannot open %s\n", path);
@@ -27,8 +29,10 @@ void check_file(char *path, char *expected) {
   }
 }
 
-int main(void) {
-  
+int
+main(void)
+{
+
   uint64 key1 = 1001;
   uint64 key2 = 1002;
   char *file = "/orders.txt";
@@ -44,7 +48,8 @@ int main(void) {
   int r2 = effect(key1, 0, file, data1, strlen(data1));
   printf("  Returned bytes: %d\n", r2);
   if (r1 == r2) {
-    printf("  [VERIFIED] Cached result returned correctly (%d == %d)\n", r1, r2);
+    printf("  [VERIFIED] Cached result returned correctly (%d == %d)\n", r1,
+           r2);
   } else {
     printf("  [FAIL] Result mismatch: %d vs %d\n", r1, r2);
   }
@@ -55,5 +60,5 @@ int main(void) {
   printf("  Returned bytes: %d\n", r3);
   check_file(file, "Hello\nWorld\n");
 
-   exit(0);
+  exit(0);
 }

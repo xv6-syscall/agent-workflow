@@ -36,7 +36,9 @@
 extern int crashpoint;
 extern int write_count;
 
-static void check_crash(void) {
+static void
+check_crash(void)
+{
   if (crashpoint > 0) {
     write_count++;
     if (write_count == crashpoint) {
@@ -237,7 +239,7 @@ void
 log_write(struct buf *b)
 {
   int i;
-check_crash();
+  check_crash();
   acquire(&log.lock);
   if (log.lh.n >= LOGBLOCKS)
     panic("too big a transaction");

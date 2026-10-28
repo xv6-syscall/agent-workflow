@@ -11,21 +11,21 @@
 // mkfs computes the super block and builds an initial file system. The
 // super block describes the disk layout:
 struct superblock {
-  uint magic;      // Must be FSMAGIC
-  uint size;       // Size of file system image (blocks)
-  uint nblocks;    // Number of data blocks
-  uint ninodes;    // Number of inodes.
-  uint nlog;       // Number of log blocks
-  uint logstart;   // Block number of first log block
-  uint inodestart; // Block number of first inode block
-  uint bmapstart;  // Block number of first free map block
-  uint neffectblocks;// Number of effect table blocks
-  uint effectstart;  // Block number of first effect table block
+  uint magic;         // Must be FSMAGIC
+  uint size;          // Size of file system image (blocks)
+  uint nblocks;       // Number of data blocks
+  uint ninodes;       // Number of inodes.
+  uint nlog;          // Number of log blocks
+  uint logstart;      // Block number of first log block
+  uint inodestart;    // Block number of first inode block
+  uint bmapstart;     // Block number of first free map block
+  uint neffectblocks; // Number of effect table blocks
+  uint effectstart;   // Block number of first effect table block
 };
 
 #define EFFECT_ENTRIES_PER_BLOCK (BSIZE / sizeof(struct effect_entry))
-#define EFFECT_TABLE_SIZE 64
-#define FSMAGIC 0x10203040
+#define EFFECT_TABLE_SIZE        64
+#define FSMAGIC                  0x10203040
 
 #define NDIRECT   12
 #define NINDIRECT (BSIZE / sizeof(uint))
@@ -65,7 +65,7 @@ struct dirent {
 };
 
 struct effect_entry {
-  uint64 key;   // 64-bit idempotency key
-  int result;   // Stored system call result
-  uint32 pad;   // Pad to exactly 16 bytes
+  uint64 key; // 64-bit idempotency key
+  int result; // Stored system call result
+  uint32 pad; // Pad to exactly 16 bytes
 };
