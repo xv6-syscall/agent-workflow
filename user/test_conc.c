@@ -1,32 +1,45 @@
 #include "kernel/types.h"
 #include "kernel/stat.h"
+#include "kernel/fcntl.h"
 #include "user/user.h"
 
-int
-main(void)
-{
-  printf("Starting concurrent effect test on multiple CPUs...\n");
+#define NUM_CHILDREN 4
+#define SHARED_KEY 7777
 
-  int pid1 = fork();
-  if (pid1 == 0) {
-    // Child 1: Attempts write under key 9999
-    int res = effect(9999, 0, "/concurrent.txt", "Child1\n", 7);
-    printf("Child 1 effect returned: %d\n", res);
-    exit(0);
+int main(int argc, char *argv[]) {
+  printf("--- Starting Concurrent Race Condition Test (CPUS=3) ---\n");
+  unlink("/conc_test.txt");
+
+  for (int i = 0; i < NUM_CHILDREN; i++) {
+    int pid = fork();
+    if (pid == 0) {
+      int res = effect(SHARED_KEY, 0, "/conc_test.txt", "CONC_DATA\n", 10);
+      printf("[Child %d] Key %d returned byte count: %d\n", getpid(), SHARED_KEY, res);
+      exit(0);
+    }
   }
 
-  int pid2 = fork();
-  if (pid2 == 0) {
-    // Child 2: Competes for the exact same key simultaneously
-    int res = effect(9999, 0, "/concurrent.txt", "Child2\n", 7);
-    printf("Child 2 effect returned: %d\n", res);
-    exit(0);
+  for (int i = 0; i < NUM_CHILDREN; i++) {
+    wait(0);
   }
 
-  // Parent waits for both process branches to finish
-  wait(0);
-  wait(0);
+  int fd = open("/conc_test.txt", O_RDONLY);
+  if (fd < 0) {
+    printf("[FAIL] File /conc_test.txt was not created!\n");
+    exit(1);
+  }
 
-  printf("Concurrent test complete.\n");
+  char buf[128];
+  int n = read(fd, buf, sizeof(buf) - 1);
+  close(fd);
+  if (n < 0) n = 0;
+  buf[n] = '\0';
+
+  printf("File contents after concurrent writes:\n%s", buf);
+  if (n == 10) {
+    printf("[PASS] Concurrency test passed: Key 7777 appended data exactly once!\n");
+  } else {
+    printf("[FAIL] Expected 10 bytes, found %d bytes!\n", n);
+  }
   exit(0);
 }

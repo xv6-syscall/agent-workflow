@@ -3,6 +3,25 @@
 #include "kernel/fcntl.h"
 #include "user/user.h"
 
+void test_payload_mismatch(void) {
+  printf("--- Testing Key Reuse with Mismatched Payload ---\n");
+  unlink("/mismatch.txt");
+
+  // First call with Key 5555 and payload "DATA_A"
+  int res1 = effect(5555, 0, "/mismatch.txt", "DATA_A\n", 7);
+  printf("First call (Key 5555, payload 'DATA_A'): %d\n", res1);
+
+  // Second call with same Key 5555 but DIFFERENT payload "DATA_B_DIFFERENT"
+  int res2 = effect(5555, 0, "/mismatch.txt", "DATA_B_DIFFERENT\n", 17);
+  printf("Second call (Key 5555, payload 'DATA_B'): %d\n", res2);
+
+  if (res2 == -2) {
+    printf("[PASS] Payload Checksum Guardrail correctly rejected mismatched key payload!\n");
+  } else {
+    printf("[FAIL] System did not reject payload mismatch (returned %d)\n", res2);
+  }
+}
+
 void
 check_file(char *path, char *expected)
 {
@@ -59,6 +78,7 @@ main(void)
   int r3 = effect(key2, 0, file, data2, strlen(data2));
   printf("  Returned bytes: %d\n", r3);
   check_file(file, "Hello\nWorld\n");
+test_payload_mismatch();
 
   exit(0);
 }

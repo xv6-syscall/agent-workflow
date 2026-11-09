@@ -157,6 +157,7 @@ UPROGS=\
         $U/_test_effect\
         $U/_test_crash\
         $U/_test_conc\
+        $U/_bench_effect\
 
 fs.img: mkfs/mkfs README $(UPROGS)
 	mkfs/mkfs fs.img README $(UPROGS)

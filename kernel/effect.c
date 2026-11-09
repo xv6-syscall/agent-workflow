@@ -41,8 +41,19 @@ key_unlock(uint64 key)
   releasesleep(&key_locks[key % 16]);
 }
 
+// Computes a 32-bit checksum of the payload buffer
+uint32
+hash_payload(char *buf, int n)
+{
+  uint32 hash = 5381;
+  for (int i = 0; i < n; i++) {
+    hash = ((hash << 5) + hash) + (uchar)buf[i];
+  }
+  return hash;
+}
+
 int
-effect_lookup(uint64 key, int *res)
+effect_lookup(uint64 key, uint32 hash, int *res)
 {
   struct buf *b = bread(ROOTDEV, sb.effectstart);
   struct effect_entry *table = (struct effect_entry *)b->data;
@@ -51,9 +62,13 @@ effect_lookup(uint64 key, int *res)
   for (int i = 0; i < EFFECT_TABLE_SIZE; i++) {
     uint slot = (start_slot + i) % EFFECT_TABLE_SIZE;
     if (table[slot].key == key && table[slot].result != 0) {
+      if (table[slot].pad != hash) {
+        brelse(b);
+        return -2; // Key found BUT payload checksum mismatched!
+      }
       *res = table[slot].result;
       brelse(b);
-      return 0; // Key found
+      return 0; // Key found & verified
     }
     if (table[slot].key == 0) {
       break;
@@ -64,7 +79,7 @@ effect_lookup(uint64 key, int *res)
 }
 
 void
-effect_insert(uint64 key, int res)
+effect_insert(uint64 key, uint32 hash, int res)
 {
   struct buf *b = bread(ROOTDEV, sb.effectstart);
   struct effect_entry *table = (struct effect_entry *)b->data;
@@ -75,6 +90,7 @@ effect_insert(uint64 key, int res)
     if (table[slot].key == 0 || table[slot].key == key) {
       table[slot].key = key;
       table[slot].result = res;
+      table[slot].pad = hash; // Store checksum in 4-byte pad field
       log_write(b); // Stage table update into transaction
       brelse(b);
       return;
@@ -109,6 +125,7 @@ sys_effect(void)
   uint64 key, ubuf;
   int op, n, res;
   char path[MAXPATH];
+  char kbuf[512];
 
   argaddr(0, &key);
   argint(1, &op);
@@ -116,18 +133,30 @@ sys_effect(void)
   argaddr(3, &ubuf);
   argint(4, &n);
 
+  uint32 hash = 0;
+  if (n > 0 && n <= sizeof(kbuf)) {
+    if (copyin(myproc()->pagetable, myproc()->sz, kbuf, ubuf, n) == 0) {
+      hash = hash_payload(kbuf, n);
+    }
+  }
+
   key_lock(key);
   begin_op(); // Single atomic transaction for lookup, write, and table insertion
 
-  if (effect_lookup(key, &res) == 0) {
+  int status = effect_lookup(key, hash, &res);
+  if (status == 0) {
     end_op();
     key_unlock(key);
     return res; // Return cached result without duplicating file write
+  } else if (status == -2) {
+    end_op();
+    key_unlock(key);
+    return -2; // Abort on mismatched payload key reuse
   }
 
   res = do_append(path, ubuf, n);
   if (res > 0) {
-    effect_insert(key, res);
+    effect_insert(key, hash, res);
   }
 
   end_op();
