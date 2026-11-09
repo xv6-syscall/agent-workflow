@@ -91,7 +91,7 @@ effect_insert(uint64 key, uint32 hash, int res)
       table[slot].key = key;
       table[slot].result = res;
       table[slot].pad = hash; // Store checksum in 4-byte pad field
-      log_write(b); // Stage table update into transaction
+      log_write(b);           // Stage table update into transaction
       brelse(b);
       return;
     }

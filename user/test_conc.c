@@ -4,9 +4,11 @@
 #include "user/user.h"
 
 #define NUM_CHILDREN 4
-#define SHARED_KEY 7777
+#define SHARED_KEY   7777
 
-int main(int argc, char *argv[]) {
+int
+main(int argc, char *argv[])
+{
   printf("--- Starting Concurrent Race Condition Test (CPUS=3) ---\n");
   unlink("/conc_test.txt");
 
@@ -14,7 +16,8 @@ int main(int argc, char *argv[]) {
     int pid = fork();
     if (pid == 0) {
       int res = effect(SHARED_KEY, 0, "/conc_test.txt", "CONC_DATA\n", 10);
-      printf("[Child %d] Key %d returned byte count: %d\n", getpid(), SHARED_KEY, res);
+      printf("[Child %d] Key %d returned byte count: %d\n", getpid(),
+             SHARED_KEY, res);
       exit(0);
     }
   }
@@ -32,12 +35,14 @@ int main(int argc, char *argv[]) {
   char buf[128];
   int n = read(fd, buf, sizeof(buf) - 1);
   close(fd);
-  if (n < 0) n = 0;
+  if (n < 0)
+    n = 0;
   buf[n] = '\0';
 
   printf("File contents after concurrent writes:\n%s", buf);
   if (n == 10) {
-    printf("[PASS] Concurrency test passed: Key 7777 appended data exactly once!\n");
+    printf(
+      "[PASS] Concurrency test passed: Key 7777 appended data exactly once!\n");
   } else {
     printf("[FAIL] Expected 10 bytes, found %d bytes!\n", n);
   }

@@ -5,8 +5,11 @@
 
 #define ITERATIONS 50
 
-int main(int argc, char *argv[]) {
-  printf("--- Running I/O Overhead Benchmark (%d Iterations) ---\n", ITERATIONS);
+int
+main(int argc, char *argv[])
+{
+  printf("--- Running I/O Overhead Benchmark (%d Iterations) ---\n",
+         ITERATIONS);
   unlink("/bench_raw.txt");
   unlink("/bench_effect.txt");
 
