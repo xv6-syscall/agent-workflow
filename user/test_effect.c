@@ -61,7 +61,7 @@ main(void)
   char *file = "/orders.txt";
   char *data1 = "Hello\n";
   char *data2 = "World\n";
-
+  unlink(file);
   printf("Test 1: First APPEND with key %d...\n", (int)key1);
   int r1 = effect(key1, 0, file, data1, strlen(data1));
   printf("  Returned bytes: %d\n", r1);
