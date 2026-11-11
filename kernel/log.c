@@ -1,3 +1,4 @@
+
 #include "types.h"
 #include "riscv.h"
 #include "defs.h"
@@ -23,13 +24,15 @@
 //
 // The log is a physical re-do log containing disk blocks.
 // The on-disk log format:
+//
 //   header block, containing block #s for block A, B, C, ...
 //   block A
 //   block B
 //   block C
 //   ...
+//
 // Log appends are synchronous.
-
+//
 // Contents of the header block, used for both the on-disk header block
 // and to keep track in memory of logged block# before commit.
 
@@ -37,12 +40,12 @@ extern int crashpoint;
 extern int write_count;
 
 static void
-check_crash(void)
+crash_point(char *stage)
 {
   if (crashpoint > 0) {
     write_count++;
     if (write_count == crashpoint) {
-      panic("CRASHAT: Simulated crash point reached");
+      panic(stage);
     }
   }
 }
@@ -61,6 +64,7 @@ struct log {
   int ncommit;
   struct logheader lh;
 };
+
 struct log log;
 
 static void recover_from_log(void);
@@ -88,12 +92,20 @@ install_trans(int recovering)
     if (recovering) {
       printk("recovering tail %d dst %d\n", tail, log.lh.block[tail]);
     }
+
     struct buf *lbuf = bread(log.dev, log.start + tail + 1); // read log block
     struct buf *dbuf = bread(log.dev, log.lh.block[tail]);   // read dst
+
     memmove(dbuf->data, lbuf->data, BSIZE); // copy block to dst
     bwrite(dbuf);                           // write dst to disk
+
+    if (recovering == 0)
+      crash_point(
+        "CRASHAT: install_trans: one block installed, header still set");
+
     if (recovering == 0)
       bunpin(dbuf);
+
     brelse(lbuf);
     brelse(dbuf);
   }
@@ -106,10 +118,12 @@ read_head(void)
   struct buf *buf = bread(log.dev, log.start);
   struct logheader *lh = (struct logheader *)(buf->data);
   int i;
+
   log.lh.n = lh->n;
   for (i = 0; i < log.lh.n; i++) {
     log.lh.block[i] = lh->block[i];
   }
+
   brelse(buf);
 }
 
@@ -122,10 +136,12 @@ write_head(void)
   struct buf *buf = bread(log.dev, log.start);
   struct logheader *hb = (struct logheader *)(buf->data);
   int i;
+
   hb->n = log.lh.n;
   for (i = 0; i < log.lh.n; i++) {
     hb->block[i] = log.lh.block[i];
   }
+
   bwrite(buf);
   brelse(buf);
 }
@@ -135,6 +151,7 @@ recover_from_log(void)
 {
   read_head();
   install_trans(1); // if committed, copy from log to disk
+
   log.lh.n = 0;
   write_head(); // clear the log
 }
@@ -144,6 +161,7 @@ void
 begin_op(void)
 {
   acquire(&log.lock);
+
   while (1) {
     if (log.committing) {
       sleep_prepare(&log);
@@ -173,8 +191,10 @@ end_op(void)
 
   acquire(&log.lock);
   log.outstanding -= 1;
+
   if (log.committing)
     panic("log.committing");
+
   if (log.outstanding == 0) {
     do_commit = 1;
     log.committing = 1;
@@ -184,12 +204,14 @@ end_op(void)
     // the amount of reserved space.
     wakeup(&log);
   }
+
   release(&log.lock);
 
   if (do_commit) {
     // call commit w/o holding locks, since not allowed
     // to sleep with locks.
     commit();
+
     acquire(&log.lock);
     log.committing = 0;
     log.ncommit += 1;
@@ -207,8 +229,10 @@ write_log(void)
   for (tail = 0; tail < log.lh.n; tail++) {
     struct buf *to = bread(log.dev, log.start + tail + 1); // log block
     struct buf *from = bread(log.dev, log.lh.block[tail]); // cache block
+
     memmove(to->data, from->data, BSIZE);
     bwrite(to); // write the log
+
     brelse(from);
     brelse(to);
   }
@@ -218,11 +242,22 @@ static void
 commit()
 {
   if (log.lh.n > 0) {
-    write_log();      // Write modified blocks from cache to log
-    write_head();     // Write header to disk -- the real commit
+    write_log(); // Write modified blocks from cache to log
+
+    crash_point("CRASHAT: commit: log blocks written, header not landed");
+
+    write_head(); // Write header to disk -- the real commit
+
+    crash_point("CRASHAT: commit: header landed, nothing installed");
+
     install_trans(0); // Now install writes to home locations
+
+    crash_point("CRASHAT: commit: all blocks installed, header not cleared");
+
     log.lh.n = 0;
     write_head(); // Erase the transaction from the log
+
+    crash_point("CRASHAT: commit: header cleared, transaction complete");
   }
 }
 
@@ -239,10 +274,14 @@ void
 log_write(struct buf *b)
 {
   int i;
-  check_crash();
+
+  crash_point("CRASHAT: log_write: staging");
+
   acquire(&log.lock);
+
   if (log.lh.n >= LOGBLOCKS)
     panic("too big a transaction");
+
   if (log.outstanding < 1)
     panic("log_write outside of trans");
 
@@ -250,11 +289,14 @@ log_write(struct buf *b)
     if (log.lh.block[i] == b->blockno) // log absorption
       break;
   }
+
   log.lh.block[i] = b->blockno;
+
   if (i == log.lh.n) { // Add new block to log?
     bpin(b);
     log.lh.n++;
   }
+
   release(&log.lock);
 }
 
@@ -262,8 +304,10 @@ uint64
 sys_sync(void)
 {
   acquire(&log.lock);
+
   if (log.committing || log.outstanding > 0) {
     int n = log.ncommit + 1;
+
     while (log.ncommit < n) {
       sleep_prepare(&log);
       release(&log.lock);
@@ -271,6 +315,7 @@ sys_sync(void)
       acquire(&log.lock);
     }
   }
+
   release(&log.lock);
   return 0;
 }
