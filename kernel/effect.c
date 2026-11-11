@@ -15,8 +15,8 @@
 extern struct superblock sb;
 
 static struct sleeplock key_locks[16];
-static int locks_inited = 0;
 
+/*
 static void
 key_lock_init(void)
 {
@@ -24,14 +24,20 @@ key_lock_init(void)
     for (int i = 0; i < 16; i++) {
       initsleeplock(&key_locks[i], "key_lock");
     }
-    locks_inited = 1;
+    locks_inited = 1
+}
+*/
+void
+effectinit(void)
+{
+  for (int i = 0; i < 16; i++) {
+    initsleeplock(&key_locks[i], "key_lock");
   }
 }
 
 void
 key_lock(uint64 key)
 {
-  key_lock_init();
   acquiresleep(&key_locks[key % 16]);
 }
 
@@ -58,6 +64,7 @@ effect_lookup(uint64 key, uint32 hash, int *res)
   struct buf *b = bread(ROOTDEV, sb.effectstart);
   struct effect_entry *table = (struct effect_entry *)b->data;
   uint start_slot = key % EFFECT_TABLE_SIZE;
+  int has_space = 0;
 
   for (int i = 0; i < EFFECT_TABLE_SIZE; i++) {
     uint slot = (start_slot + i) % EFFECT_TABLE_SIZE;
@@ -71,11 +78,12 @@ effect_lookup(uint64 key, uint32 hash, int *res)
       return 0; // Key found & verified
     }
     if (table[slot].key == 0) {
+      has_space = 1;
       break;
     }
   }
   brelse(b);
-  return -1; // Key not found
+  return has_space ? -1 : -3; // Key not found
 }
 
 void
@@ -133,6 +141,9 @@ sys_effect(void)
   argaddr(3, &ubuf);
   argint(4, &n);
 
+  if (n < 0 || n > sizeof(kbuf) || key == 0)
+    return -1;
+
   uint32 hash = 0;
   if (n > 0 && n <= sizeof(kbuf)) {
     if (copyin(myproc()->pagetable, myproc()->sz, kbuf, ubuf, n) == 0) {
@@ -152,8 +163,11 @@ sys_effect(void)
     end_op();
     key_unlock(key);
     return -2; // Abort on mismatched payload key reuse
+  } else if (status == -3) {
+    end_op();
+    key_unlock(key);
+    return -1;
   }
-
   res = do_append(path, ubuf, n);
   if (res > 0) {
     effect_insert(key, hash, res);

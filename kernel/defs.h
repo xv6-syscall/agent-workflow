@@ -185,5 +185,9 @@ void            virtio_disk_intr(void);
 // sysfile.c
 struct inode*   create(char*, short, short, short);
 
+// effect.c
+
+void            effectinit(void);
 // number of elements in fixed-size array
 #define NELEM(x) (sizeof(x) / sizeof((x)[0]))
+
