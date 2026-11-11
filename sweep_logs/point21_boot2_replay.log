@@ -1,0 +1,12 @@
+qemu-system-riscv64 -machine virt -bios none -kernel kernel/kernel -m 128M -smp 1 -nographic -global virtio-mmio.force-legacy=false -drive file=fs.img,if=none,format=raw,id=x0 -device virtio-blk-device,drive=x0,bus=virtio-mmio-bus.0
+
+xv6 kernel is booting
+
+init: starting sh
+$ test_crash 0
+Setting crashpoint at write #0 and invoking effect()...
+Effect returned: 10 (If seen, no crash occurred)
+$ cat /crash_test.txt
+CrashData
+$ QEMU: Terminated
+

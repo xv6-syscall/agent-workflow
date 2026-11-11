@@ -1,0 +1,17 @@
+| Crash Point | Status | Observed Data Count | Result Guarantee |
+|-------------|--------|---------------------|------------------|
+|      1      | PASS   |          1          | Exactly Once     |
+|      2      | PASS   |          1          | Exactly Once     |
+|      3      | PASS   |          1          | Exactly Once     |
+|      4      | PASS   |          1          | Exactly Once     |
+|      5      | PASS   |          1          | Exactly Once     |
+|      6      | PASS   |          1          | Exactly Once     |
+|      7      | PASS   |          1          | Exactly Once     |
+|      8      | PASS   |          1          | Exactly Once     |
+|      9      | PASS   |          1          | Exactly Once     |
+|     10      | PASS   |          1          | Exactly Once     |
+|     11      | PASS   |          1          | Exactly Once     |
+|     12      | PASS   |          1          | Exactly Once     |
+|     13      | PASS   |          1          | Exactly Once     |
+|     14      | PASS   |          1          | Exactly Once     |
+|     15      | PASS   |          1          | Exactly Once     |
