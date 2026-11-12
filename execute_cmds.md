@@ -13,12 +13,6 @@ bench_effect
 effect 42 0 /orders.txt "ItemA"
 cat /orders.txt
 
-### crash test manually 
-
-test_crash 12
-make qemu
-test_crash 0
-cat /crash_test.txt
 
 ### crash sweep
 
