@@ -17,6 +17,7 @@ cat /orders.txt
 ### crash sweep
 
 pip install pexpect
+make clean
 python3 crash_sweep2.py --toolprefix riscv64-linux-gnu- --cpus 1
 cat crash_sweep_results.md
 ls sweep_logs/
